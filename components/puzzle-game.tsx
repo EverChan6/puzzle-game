@@ -17,8 +17,14 @@ import {
 } from '@/lib/puzzle-utils'
 import type { PuzzlePiece } from '@/lib/puzzle-types'
 import { PRESET_IMAGES } from '@/lib/puzzle-types'
+import { Button } from '@/components/ui/button'
+import { ArrowLeftIcon } from 'lucide-react'
 
-export function PuzzleGame() {
+interface PuzzleGameProps {
+  onBackToMenu?: () => void
+}
+
+export function PuzzleGame({ onBackToMenu }: PuzzleGameProps) {
   // 游戏状态
   const [pieces, setPieces] = useState<PuzzlePiece[]>([])
   const [gridSize, setGridSize] = useState(3)
@@ -46,6 +52,13 @@ export function PuzzleGame() {
       }
     }
   }, [isPlaying, startTime, isComplete])
+
+  // 当游戏完成时触发历史记录更新事件
+  useEffect(() => {
+    if (isComplete) {
+      window.dispatchEvent(new Event('puzzle-record-added'))
+    }
+  }, [isComplete])
 
   // 选择图片
   const handleImageSelect = useCallback((url: string) => {
@@ -108,9 +121,6 @@ export function PuzzleGame() {
           date: new Date().toISOString()
         })
         
-        // 触发历史记录更新
-        window.dispatchEvent(new Event('puzzle-record-added'))
-        
         // 延迟显示完成弹窗
         setTimeout(() => {
           setShowModal(true)
@@ -155,6 +165,12 @@ export function PuzzleGame() {
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
+              {onBackToMenu && (
+                <Button variant="ghost" size="sm" onClick={onBackToMenu}>
+                  <ArrowLeftIcon className="h-4 w-4 mr-2" />
+                  返回
+                </Button>
+              )}
               <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
                 <svg
                   viewBox="0 0 24 24"

@@ -90,3 +90,82 @@ export const DIFFICULTY_OPTIONS = [
   { value: 8, label: '专家 (8x8)', pieces: 64 },
   { value: 10, label: '大师 (10x10)', pieces: 100 }
 ]
+
+// ============ 高级模式类型定义 ============
+
+export type GameMode = 'classic' | 'advanced'
+
+// 旋转角度: 0, 90, 180, 270
+export type Rotation = 0 | 90 | 180 | 270
+
+// 高级模式拼图块
+export interface AdvancedPuzzlePiece {
+  id: number
+  correctRow: number
+  correctCol: number
+  imageX: number
+  imageY: number
+  edges: PieceEdges
+  rotation: Rotation
+  // 当前在画布上的位置（格子坐标），null 表示还在碎片池中
+  placedPosition: { row: number; col: number } | null
+  // 是否已正确放置
+  isCorrect: boolean
+  // 碎片类型：corner/edge/center
+  pieceType: 'corner' | 'edge' | 'center'
+  // 主色调（用于自动分组）
+  dominantColor?: string
+}
+
+// 画布视口状态
+export interface ViewportState {
+  scale: number
+  offsetX: number
+  offsetY: number
+}
+
+// 高级模式游戏状态
+export interface AdvancedGameState {
+  pieces: AdvancedPuzzlePiece[]
+  gridSize: number
+  piecePool: number[] // 碎片池中的碎片ID
+  placedPieces: number[] // 已放置的碎片ID
+  currentPieceId: number | null // 当前抽取的碎片ID
+  skippedPieces: number[] // 跳过的碎片ID（优先级较低）
+  startTime: number | null
+  endTime: number | null
+  isComplete: boolean
+  imageUrl: string
+  moves: number
+  viewport: ViewportState
+  // 智能提示设置
+  showEdgePiecesFirst: boolean
+  autoGroupByColor: boolean
+}
+
+// 高级模式难度选项
+export const ADVANCED_DIFFICULTY_OPTIONS = [
+  { value: 10, label: '入门 (10x10)', pieces: 100 },
+  { value: 16, label: '简单 (16x16)', pieces: 256 },
+  { value: 20, label: '普通 (20x20)', pieces: 400 },
+  { value: 25, label: '困难 (25x25)', pieces: 625 },
+  { value: 32, label: '专家 (32x32)', pieces: 1024 },
+]
+
+// 高级模式游戏存档
+export interface AdvancedGameSave {
+  id: string
+  state: AdvancedGameState
+  savedAt: string
+  thumbnailUrl: string
+  progress: number // 完成百分比
+}
+
+// 碎片池过滤器
+export type PieceFilter = 'all' | 'corner' | 'edge' | 'center'
+
+// 颜色分组
+export interface ColorGroup {
+  color: string
+  pieceIds: number[]
+}
