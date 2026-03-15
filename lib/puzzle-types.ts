@@ -1,9 +1,20 @@
+// 边缘形状类型: 0=平边（边界）, 1=凸出, -1=凹陷
+export type EdgeType = 0 | 1 | -1
+
+export interface PieceEdges {
+  top: EdgeType
+  right: EdgeType
+  bottom: EdgeType
+  left: EdgeType
+}
+
 export interface PuzzlePiece {
   id: number
   currentIndex: number
   correctIndex: number
   imageX: number
   imageY: number
+  edges: PieceEdges
 }
 
 export interface GameState {

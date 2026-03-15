@@ -1,12 +1,67 @@
-import type { PuzzlePiece, GameRecord } from './puzzle-types'
+import type { 
+  PuzzlePiece, 
+  GameRecord, 
+  EdgeType, 
+  PieceEdges,
+} from './puzzle-types'
+
+/**
+ * 生成拼图块的边缘形状
+ * 确保相邻拼图块的边缘互补（一个凸出，一个凹陷）
+ */
+function generateEdges(gridSize: number): PieceEdges[][] {
+  const edges: PieceEdges[][] = []
+  
+  // 先生成水平边缘（影响上下相邻块）
+  const horizontalEdges: EdgeType[][] = []
+  for (let row = 0; row <= gridSize; row++) {
+    horizontalEdges[row] = []
+    for (let col = 0; col < gridSize; col++) {
+      if (row === 0 || row === gridSize) {
+        horizontalEdges[row][col] = 0 // 边界为平边
+      } else {
+        horizontalEdges[row][col] = Math.random() > 0.5 ? 1 : -1
+      }
+    }
+  }
+  
+  // 生成垂直边缘（影响左右相邻块）
+  const verticalEdges: EdgeType[][] = []
+  for (let row = 0; row < gridSize; row++) {
+    verticalEdges[row] = []
+    for (let col = 0; col <= gridSize; col++) {
+      if (col === 0 || col === gridSize) {
+        verticalEdges[row][col] = 0 // 边界为平边
+      } else {
+        verticalEdges[row][col] = Math.random() > 0.5 ? 1 : -1
+      }
+    }
+  }
+  
+  // 组合成每个拼图块的边缘
+  for (let row = 0; row < gridSize; row++) {
+    edges[row] = []
+    for (let col = 0; col < gridSize; col++) {
+      edges[row][col] = {
+        top: horizontalEdges[row][col],
+        bottom: (horizontalEdges[row + 1][col] * -1) as EdgeType, // 相邻块边缘互补
+        left: verticalEdges[row][col],
+        right: (verticalEdges[row][col + 1] * -1) as EdgeType // 相邻块边缘互补
+      }
+    }
+  }
+  
+  return edges
+}
 
 /**
  * 图片切割算法
- * 将图片按照网格大小切割成多个拼图块
+ * 将图片按照网格大小切割成多个拼图块，并生成凸凹边缘
  */
 export function createPuzzlePieces(gridSize: number): PuzzlePiece[] {
   const pieces: PuzzlePiece[] = []
   const totalPieces = gridSize * gridSize
+  const edgesMap = generateEdges(gridSize)
   
   for (let i = 0; i < totalPieces; i++) {
     const row = Math.floor(i / gridSize)
@@ -16,7 +71,8 @@ export function createPuzzlePieces(gridSize: number): PuzzlePiece[] {
       currentIndex: i,
       correctIndex: i,
       imageX: col,
-      imageY: row
+      imageY: row,
+      edges: edgesMap[row][col]
     })
   }
   
