@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import type { 
   AdvancedGameState, 
   PieceFilter,
@@ -29,6 +30,18 @@ import { CurrentPiece } from './current-piece'
 import { ProgressPanel } from './progress-panel'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger
+} from '@/components/ui/collapsible'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle
+} from '@/components/ui/dialog'
 import { 
   Select, 
   SelectContent, 
@@ -37,6 +50,7 @@ import {
   SelectValue 
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
+import { cn } from '@/lib/utils'
 import { 
   PlayIcon, 
   UploadIcon, 
@@ -46,7 +60,13 @@ import {
   HistoryIcon,
   Trash2Icon,
   CheckCircle2Icon,
-  TrophyIcon
+  TrophyIcon,
+  Maximize2Icon,
+  Minimize2Icon,
+  ChevronDownIcon,
+  ChevronUpIcon,
+  ZoomInIcon,
+  XIcon
 } from 'lucide-react'
 
 type GamePhase = 'setup' | 'playing' | 'complete'
@@ -73,9 +93,54 @@ export function AdvancedPuzzleGame({ onBackToMenu }: AdvancedPuzzleGameProps) {
   const [showSaves, setShowSaves] = useState(false)
   const [saves, setSaves] = useState<AdvancedGameSave[]>([])
 
+  const playAreaRef = useRef<HTMLDivElement>(null)
+  const [playAreaFullscreen, setPlayAreaFullscreen] = useState(false)
+  const [referenceFloatDismissed, setReferenceFloatDismissed] = useState(false)
+  const [referenceFloatExpanded, setReferenceFloatExpanded] = useState(true)
+  const [referenceDialogOpen, setReferenceDialogOpen] = useState(false)
+  const [referenceImageFullBleed, setReferenceImageFullBleed] = useState(false)
+
   // 加载存档列表
   useEffect(() => {
     setSaves(getAdvancedGameSaves())
+  }, [])
+
+  useEffect(() => {
+    const onFsChange = () => {
+      setPlayAreaFullscreen(document.fullscreenElement === playAreaRef.current)
+    }
+    document.addEventListener('fullscreenchange', onFsChange)
+    return () => document.removeEventListener('fullscreenchange', onFsChange)
+  }, [])
+
+  useEffect(() => {
+    if (playAreaFullscreen) {
+      setReferenceFloatDismissed(false)
+      setReferenceFloatExpanded(true)
+    }
+  }, [playAreaFullscreen])
+
+  useEffect(() => {
+    if (!referenceImageFullBleed) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setReferenceImageFullBleed(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [referenceImageFullBleed])
+
+  const togglePlayAreaFullscreen = useCallback(async () => {
+    const el = playAreaRef.current
+    if (!el) return
+    try {
+      if (document.fullscreenElement === el) {
+        await document.exitFullscreen()
+      } else {
+        await el.requestFullscreen()
+      }
+    } catch {
+      // 部分浏览器/权限下可能失败，静默忽略
+    }
   }, [])
 
   // 自动保存（每放置10块碎片或每2分钟）
@@ -476,6 +541,10 @@ export function AdvancedPuzzleGame({ onBackToMenu }: AdvancedPuzzleGameProps) {
     ? gameState.pieces.find(p => p.id === gameState.currentPieceId) || null
     : null
 
+  const canDrawPiece =
+    !currentPiece &&
+    (gameState.piecePool.length > 0 || gameState.skippedPieces.length > 0)
+
   return (
     <div className="h-screen flex flex-col bg-background">
       {/* 顶部工具栏 */}
@@ -496,6 +565,13 @@ export function AdvancedPuzzleGame({ onBackToMenu }: AdvancedPuzzleGameProps) {
       <div className="flex-1 flex overflow-hidden">
         {/* 左侧边栏 */}
         <aside className="w-64 border-r border-border p-4 space-y-4 overflow-y-auto bg-card/50">
+          {canDrawPiece && (
+            <Button onClick={handleDrawPiece} className="w-full">
+              <SparklesIcon className="h-4 w-4 mr-2" />
+              抽取碎片
+            </Button>
+          )}
+
           <CurrentPiece
             piece={currentPiece}
             imageUrl={gameState.imageUrl}
@@ -512,30 +588,125 @@ export function AdvancedPuzzleGame({ onBackToMenu }: AdvancedPuzzleGameProps) {
             filter={pieceFilter}
             onFilterChange={setPieceFilter}
           />
-
-          {/* 抽取按钮 */}
-          {!currentPiece && (gameState.piecePool.length > 0 || gameState.skippedPieces.length > 0) && (
-            <Button onClick={handleDrawPiece} className="w-full">
-              <SparklesIcon className="h-4 w-4 mr-2" />
-              抽取碎片
-            </Button>
-          )}
         </aside>
 
-        {/* 画布区域 */}
-        <main className="flex-1 p-4">
-          <InfiniteCanvas
-            pieces={gameState.pieces}
-            gridSize={gameState.gridSize}
-            imageUrl={gameState.imageUrl}
-            viewport={gameState.viewport}
-            onViewportChange={handleViewportChange}
-            currentPieceId={gameState.currentPieceId}
-            onPiecePlaced={handlePiecePlaced}
-            onPieceRemoved={handlePieceRemoved}
-            showReferenceImage={showReferenceImage}
-            highlightConnectedRegions={highlightConnected}
-          />
+        {/* 画布区域（可全屏） */}
+        <main
+          ref={playAreaRef}
+          className="relative flex flex-1 flex-col min-h-0 min-w-0 bg-background p-4"
+        >
+          <div className="mb-2 flex shrink-0 items-center justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={togglePlayAreaFullscreen}
+              title={playAreaFullscreen ? '退出全屏' : '全屏画布'}
+            >
+              {playAreaFullscreen ? (
+                <Minimize2Icon className="h-4 w-4 mr-1" />
+              ) : (
+                <Maximize2Icon className="h-4 w-4 mr-1" />
+              )}
+              {playAreaFullscreen ? '退出全屏' : '全屏画布'}
+            </Button>
+          </div>
+
+          <div className="relative min-h-0 flex-1">
+            <InfiniteCanvas
+              pieces={gameState.pieces}
+              gridSize={gameState.gridSize}
+              imageUrl={gameState.imageUrl}
+              viewport={gameState.viewport}
+              onViewportChange={handleViewportChange}
+              currentPieceId={gameState.currentPieceId}
+              onPiecePlaced={handlePiecePlaced}
+              onPieceRemoved={handlePieceRemoved}
+              showReferenceImage={showReferenceImage}
+              highlightConnectedRegions={highlightConnected}
+            />
+
+            {playAreaFullscreen && !referenceFloatDismissed && (
+              <div className="pointer-events-none absolute inset-0 z-10 flex items-end justify-end p-4">
+                <Collapsible
+                  open={referenceFloatExpanded}
+                  onOpenChange={setReferenceFloatExpanded}
+                  className="pointer-events-auto w-[min(18rem,calc(100vw-3rem))] max-w-[min(18rem,40vw)]"
+                >
+                  <Card className="overflow-hidden border-border/80 bg-card/95 shadow-lg backdrop-blur-sm">
+                    <div className="flex items-center gap-1 border-b border-border px-2 py-1.5">
+                      <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
+                        参考图
+                      </span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 shrink-0"
+                        onClick={() => setReferenceDialogOpen(true)}
+                        title="放大查看"
+                      >
+                        <ZoomInIcon className="h-4 w-4" />
+                      </Button>
+                      <CollapsibleTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 shrink-0"
+                          title={referenceFloatExpanded ? '收起' : '展开'}
+                        >
+                          {referenceFloatExpanded ? (
+                            <ChevronDownIcon className="h-4 w-4" />
+                          ) : (
+                            <ChevronUpIcon className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </CollapsibleTrigger>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 shrink-0"
+                        onClick={() => setReferenceFloatDismissed(true)}
+                        title="关闭悬浮窗"
+                      >
+                        <XIcon className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    <CollapsibleContent>
+                      <button
+                        type="button"
+                        className="block w-full cursor-zoom-in p-2 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        onClick={() => setReferenceDialogOpen(true)}
+                      >
+                        <img
+                          src={gameState.imageUrl}
+                          alt="参考图"
+                          className="max-h-48 w-full rounded-md object-contain"
+                        />
+                      </button>
+                    </CollapsibleContent>
+                  </Card>
+                </Collapsible>
+              </div>
+            )}
+
+            {playAreaFullscreen && referenceFloatDismissed && (
+              <div className="pointer-events-none absolute inset-0 z-10 flex items-end justify-end p-4">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  className="pointer-events-auto shadow-md"
+                  onClick={() => setReferenceFloatDismissed(false)}
+                >
+                  <ImageIcon className="mr-2 h-4 w-4" />
+                  显示参考图
+                </Button>
+              </div>
+            )}
+          </div>
         </main>
 
         {/* 右侧边栏 */}
@@ -560,6 +731,87 @@ export function AdvancedPuzzleGame({ onBackToMenu }: AdvancedPuzzleGameProps) {
           </div>
         </aside>
       </div>
+
+      <Dialog open={referenceDialogOpen} onOpenChange={setReferenceDialogOpen}>
+        <DialogContent
+          className="max-h-[90vh] max-w-[min(96vw,56rem)] overflow-y-auto"
+          showCloseButton
+          container={
+            playAreaFullscreen && playAreaRef.current
+              ? playAreaRef.current
+              : undefined
+          }
+        >
+          <DialogHeader>
+            <DialogTitle>参考图</DialogTitle>
+            <DialogDescription className="sr-only">
+              查看完整参考图，可全屏查看细节。
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="flex justify-center rounded-md bg-muted/30 p-2">
+              <img
+                src={gameState.imageUrl}
+                alt="参考图"
+                className="max-h-[70vh] w-full object-contain"
+              />
+            </div>
+            <div className="flex justify-end">
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={() => {
+                  setReferenceDialogOpen(false)
+                  setReferenceImageFullBleed(true)
+                }}
+              >
+                <Maximize2Icon className="mr-2 h-4 w-4" />
+                全屏查看
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {referenceImageFullBleed &&
+        createPortal(
+          <div
+            className={cn(
+              'z-[100] flex flex-col bg-black',
+              playAreaFullscreen ? 'absolute inset-0' : 'fixed inset-0'
+            )}
+            role="presentation"
+          >
+            <div className="flex shrink-0 items-center justify-end gap-2 border-b border-white/10 p-3">
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                className="bg-white/10 text-white hover:bg-white/20"
+                onClick={() => setReferenceImageFullBleed(false)}
+              >
+                <XIcon className="mr-2 h-4 w-4" />
+                关闭
+              </Button>
+            </div>
+            <button
+              type="button"
+              className="flex min-h-0 flex-1 cursor-default items-center justify-center overflow-auto p-4"
+              onClick={() => setReferenceImageFullBleed(false)}
+            >
+              <img
+                src={gameState.imageUrl}
+                alt="参考图全屏"
+                className="max-h-full max-w-full object-contain"
+                onClick={(e) => e.stopPropagation()}
+              />
+            </button>
+          </div>,
+          playAreaFullscreen && playAreaRef.current
+            ? playAreaRef.current
+            : document.body
+        )}
     </div>
   )
 }

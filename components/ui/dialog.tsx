@@ -50,12 +50,15 @@ function DialogContent({
   className,
   children,
   showCloseButton = true,
+  container,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
   showCloseButton?: boolean
+  /** 将弹层挂到指定节点（例如画布全屏时需挂到全屏元素内，否则会在 body 上被挡住） */
+  container?: HTMLElement | null
 }) {
   return (
-    <DialogPortal data-slot="dialog-portal">
+    <DialogPortal container={container ?? undefined} data-slot="dialog-portal">
       <DialogOverlay />
       <DialogPrimitive.Content
         data-slot="dialog-content"

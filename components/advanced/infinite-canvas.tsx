@@ -471,26 +471,41 @@ export function InfiniteCanvas({
     onPieceRemoved
   ])
 
-  const handleWheel = useCallback((e: React.WheelEvent) => {
-    e.preventDefault()
-    
-    const coords = getCanvasCoords(e.clientX, e.clientY)
-    if (!coords) return
-    
-    const delta = e.deltaY > 0 ? 0.9 : 1.1
-    const newScale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, viewport.scale * delta))
-    
-    // 缩放时保持鼠标位置不变
-    const scaleRatio = newScale / viewport.scale
-    const newOffsetX = coords.x - (coords.x - viewport.offsetX) * scaleRatio
-    const newOffsetY = coords.y - (coords.y - viewport.offsetY) * scaleRatio
-    
-    onViewportChange({
-      scale: newScale,
-      offsetX: newOffsetX,
-      offsetY: newOffsetY
-    })
-  }, [viewport, getCanvasCoords, onViewportChange])
+  const viewportRef = useRef(viewport)
+  viewportRef.current = viewport
+
+  const onViewportChangeRef = useRef(onViewportChange)
+  onViewportChangeRef.current = onViewportChange
+
+  // React 的合成 wheel 为 passive，无法 preventDefault；原生监听需 { passive: false }
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+
+    const handler = (e: WheelEvent) => {
+      e.preventDefault()
+
+      const coords = getCanvasCoords(e.clientX, e.clientY)
+      if (!coords) return
+
+      const v = viewportRef.current
+      const delta = e.deltaY > 0 ? 0.9 : 1.1
+      const newScale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, v.scale * delta))
+
+      const scaleRatio = newScale / v.scale
+      const newOffsetX = coords.x - (coords.x - v.offsetX) * scaleRatio
+      const newOffsetY = coords.y - (coords.y - v.offsetY) * scaleRatio
+
+      onViewportChangeRef.current({
+        scale: newScale,
+        offsetX: newOffsetX,
+        offsetY: newOffsetY
+      })
+    }
+
+    canvas.addEventListener('wheel', handler, { passive: false })
+    return () => canvas.removeEventListener('wheel', handler)
+  }, [getCanvasCoords])
 
   return (
     <div 
@@ -505,7 +520,6 @@ export function InfiniteCanvas({
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}
         onClick={handleClick}
-        onWheel={handleWheel}
       />
       
       {/* 缩放指示器 */}
