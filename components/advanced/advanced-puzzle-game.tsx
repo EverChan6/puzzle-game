@@ -253,12 +253,13 @@ export function AdvancedPuzzleGame({ onBackToMenu }: AdvancedPuzzleGameProps) {
 
   // 加载存档
   const handleLoadSave = useCallback((saveId: string) => {
-    const state = loadAdvancedGameSave(saveId)
-    if (state) {
-      setGameState(state)
-      setGamePhase('playing')
-      setShowSaves(false)
-    }
+    void loadAdvancedGameSave(saveId).then((state) => {
+      if (state) {
+        setGameState(state)
+        setGamePhase('playing')
+        setShowSaves(false)
+      }
+    }).catch((error) => console.error('[v0] Failed to load advanced save:', error))
   }, [])
 
   // 删除存档

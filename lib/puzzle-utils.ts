@@ -574,7 +574,7 @@ export function removePlacedPiece(
 }
 
 /**
- * 初始化高级模式游戏状态
+ * 初���化高级模式游戏状态
  */
 export function initAdvancedGameState(
   imageUrl: string,
@@ -610,22 +610,40 @@ export function initAdvancedGameState(
 /**
  * 保存高级模式游戏进度
  */
-export function saveAdvancedGameProgress(state: AdvancedGameState): string {
+export async function saveAdvancedGameProgress(state: AdvancedGameState): Promise<string> {
+  const saveId = generateId()
+  const imageId = state.imageUrl.startsWith('data:') ? `advanced-${saveId}` : undefined
+  if (imageId) await saveCustomImage(imageId, state.imageUrl)
+
+  // 图片数据只进入 IndexedDB；localStorage 仅保存游戏状态和图片引用
+  const compactState: AdvancedGameState = {
+    ...state,
+    imageUrl: imageId ? '' : state.imageUrl,
+    imageId,
+  }
   const save: AdvancedGameSave = {
-    id: generateId(),
-    state,
+    id: saveId,
+    state: compactState,
     savedAt: new Date().toISOString(),
-    thumbnailUrl: state.imageUrl,
+    thumbnailUrl: imageId ? undefined : state.imageUrl,
+    imageId,
     progress: Math.round((state.placedPieces.length / state.pieces.length) * 100)
   }
-  
+
   const saves = getAdvancedGameSaves()
   saves.unshift(save)
-  // 最多保存 5 个存档
   const trimmed = saves.slice(0, 5)
-  localStorage.setItem('advanced_puzzle_saves', JSON.stringify(trimmed))
-  
-  return save.id
+  try {
+    localStorage.setItem('advanced_puzzle_saves', JSON.stringify(trimmed))
+  } catch (error) {
+    const compactSaves = trimmed.map(({ thumbnailUrl: _thumbnailUrl, state: savedState, ...item }) => ({
+      ...item,
+      state: { ...savedState, imageUrl: '', imageId: savedState.imageId },
+    }))
+    localStorage.setItem('advanced_puzzle_saves', JSON.stringify(compactSaves))
+    console.warn('[v0] Removed legacy advanced save image data:', error)
+  }
+  return saveId
 }
 
 /**
@@ -640,10 +658,17 @@ export function getAdvancedGameSaves(): AdvancedGameSave[] {
 /**
  * 加载高级模式存档
  */
-export function loadAdvancedGameSave(saveId: string): AdvancedGameState | null {
+export async function loadAdvancedGameSave(saveId: string): Promise<AdvancedGameState | null> {
   const saves = getAdvancedGameSaves()
   const save = saves.find(s => s.id === saveId)
-  return save ? save.state : null
+  if (!save) return null
+  if (save.imageId || save.state.imageId) {
+    const imageUrl = await import('./image-database').then(({ getCustomImage }) =>
+      getCustomImage(save.imageId || save.state.imageId!)
+    )
+    return imageUrl ? { ...save.state, imageUrl } : null
+  }
+  return save.state
 }
 
 /**
