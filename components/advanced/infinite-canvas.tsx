@@ -42,6 +42,7 @@ export function InfiniteCanvas({
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const imageRef = useRef<HTMLImageElement | null>(null)
+  const imageUrlRef = useRef(imageUrl)
   const [isDragging, setIsDragging] = useState(false)
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
   const [hoverCell, setHoverCell] = useState<{ row: number; col: number } | null>(null)
@@ -50,13 +51,31 @@ export function InfiniteCanvas({
 
   // 加载图片
   useEffect(() => {
+    let cancelled = false
+    imageUrlRef.current = imageUrl
+    imageRef.current = null
+    setImageLoaded(false)
+
     const img = new Image()
     img.crossOrigin = 'anonymous'
     img.onload = () => {
+      if (cancelled || imageUrlRef.current !== imageUrl) return
       imageRef.current = img
       setImageLoaded(true)
     }
+    img.onerror = () => {
+      if (!cancelled && imageUrlRef.current === imageUrl) {
+        imageRef.current = null
+        setImageLoaded(false)
+      }
+    }
     img.src = imageUrl
+
+    return () => {
+      cancelled = true
+      img.onload = null
+      img.onerror = null
+    }
   }, [imageUrl])
 
   // 获取已放置的碎片
@@ -232,9 +251,10 @@ export function InfiniteCanvas({
     ctx.clip()
     
     // 计算图片源区域
-    const srcSize = img.width / gridSize
-    const srcX = piece.imageX * srcSize
-    const srcY = piece.imageY * srcSize
+    const srcWidth = img.naturalWidth / gridSize
+    const srcHeight = img.naturalHeight / gridSize
+    const srcX = piece.imageX * srcWidth
+    const srcY = piece.imageY * srcHeight
     
     // 处理旋转
     const centerX = x + size / 2
@@ -248,7 +268,7 @@ export function InfiniteCanvas({
     const tabExtra = size * TAB_SIZE
     ctx.drawImage(
       img,
-      srcX, srcY, srcSize, srcSize,
+      srcX, srcY, srcWidth, srcHeight,
       x - tabExtra, y - tabExtra, size + tabExtra * 2, size + tabExtra * 2
     )
     
