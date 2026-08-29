@@ -140,6 +140,7 @@ export interface AdvancedGameState {
   endTime: number | null
   isComplete: boolean
   imageUrl: string
+  imageId?: string
   moves: number
   viewport: ViewportState
   // 智能提示设置
@@ -161,7 +162,8 @@ export interface AdvancedGameSave {
   id: string
   state: AdvancedGameState
   savedAt: string
-  thumbnailUrl: string
+  thumbnailUrl?: string
+  imageId?: string
   progress: number // 完成百分比
 }
 
