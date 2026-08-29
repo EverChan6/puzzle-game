@@ -5,25 +5,44 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { getGameRecords, clearGameRecords, formatTime } from '@/lib/puzzle-utils'
+import { getCustomImage } from '@/lib/image-database'
+import { PRESET_IMAGES } from '@/lib/puzzle-types'
 import type { GameRecord } from '@/lib/puzzle-types'
 import { History, Trash2, Clock, Move, Grid3X3 } from 'lucide-react'
 
 export function GameHistory() {
   const [records, setRecords] = useState<GameRecord[]>([])
+  const [imageUrls, setImageUrls] = useState<Record<string, string>>({})
+
+  const loadRecords = () => {
+    const nextRecords = getGameRecords()
+    setRecords(nextRecords)
+    void Promise.all(nextRecords.map(async (record) => {
+      if (record.customImageId) {
+        const url = await getCustomImage(record.customImageId)
+        return url ? [record.id, url] as const : null
+      }
+      const preset = record.presetImageId && PRESET_IMAGES.find((item) => item.id === record.presetImageId)
+      return preset ? [record.id, preset.thumbnail] as const : null
+    })).then((entries) => {
+      setImageUrls(Object.fromEntries(entries.filter((entry): entry is readonly [string, string] => Boolean(entry))))
+    }).catch((error) => console.error('[v0] Failed to load history images:', error))
+  }
 
   useEffect(() => {
-    setRecords(getGameRecords())
+    loadRecords()
   }, [])
 
   const handleClear = () => {
     if (confirm('确定要清除所有历史记录吗？')) {
-      clearGameRecords()
-      setRecords([])
+  void clearGameRecords().catch((error) => console.error('[v0] Failed to clear records:', error))
+  setRecords([])
+  setImageUrls({})
     }
   }
 
   const refreshRecords = () => {
-    setRecords(getGameRecords())
+    loadRecords()
   }
 
   // 暴露刷新方法给父组件
@@ -84,7 +103,7 @@ export function GameHistory() {
                 {/* 缩略图 */}
                 <div className="flex-shrink-0 w-10 h-10 rounded overflow-hidden">
                   <img
-                    src={record.imageUrl}
+                    src={record.imageUrl || imageUrls[record.id] || '/placeholder.svg'}
                     alt="拼图"
                     className="w-full h-full object-cover"
                     crossOrigin="anonymous"

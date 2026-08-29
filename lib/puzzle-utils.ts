@@ -9,6 +9,7 @@ import type {
   Rotation,
   ViewportState
 } from './puzzle-types'
+import { saveCustomImage, deleteCustomImage, clearAllCustomImages } from './image-database'
 
 /**
  * 生成拼图块的边缘形状
@@ -171,12 +172,22 @@ export function formatTime(seconds: number): string {
 /**
  * 保存游戏记录到 localStorage
  */
-export function saveGameRecord(record: GameRecord): void {
+export async function saveGameRecord(record: GameRecord): Promise<void> {
   const records = getGameRecords()
-  records.unshift(record)
-  // 只保留最近 20 条记录
+  // 永远不要把自定义图片 DataURL 写入 localStorage
+  const metadata: GameRecord = { ...record }
+  delete metadata.imageUrl
+  records.unshift(metadata)
   const trimmed = records.slice(0, 20)
-  localStorage.setItem('puzzle_records', JSON.stringify(trimmed))
+
+  try {
+    localStorage.setItem('puzzle_records', JSON.stringify(trimmed))
+  } catch (error) {
+    // 清理旧版本遗留的大型 DataURL 后重试一次
+    const compactRecords = records.map(({ imageUrl: _imageUrl, ...item }) => item).slice(0, 20)
+    localStorage.setItem('puzzle_records', JSON.stringify(compactRecords))
+    console.warn('[v0] Removed legacy image data from puzzle records:', error)
+  }
 }
 
 /**
@@ -191,8 +202,15 @@ export function getGameRecords(): GameRecord[] {
 /**
  * 清除所有游戏记录
  */
-export function clearGameRecords(): void {
+export async function clearGameRecords(): Promise<void> {
+  const records = getGameRecords()
   localStorage.removeItem('puzzle_records')
+  await Promise.all(
+    records
+      .filter((record) => record.customImageId)
+      .map((record) => deleteCustomImage(record.customImageId!))
+  )
+  await clearAllCustomImages()
 }
 
 /**

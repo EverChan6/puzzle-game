@@ -7,8 +7,15 @@ import { PRESET_IMAGES, type PresetImage } from '@/lib/puzzle-types'
 import { Upload, Image as ImageIcon, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
+interface ImageSelection {
+  url: string
+  source: 'preset' | 'custom'
+  presetImageId?: string
+  customImageId?: string
+}
+
 interface ImageSelectorProps {
-  onSelect: (imageUrl: string) => void
+  onSelect: (selection: ImageSelection) => void
   selectedUrl: string | null
 }
 
@@ -27,7 +34,11 @@ export function ImageSelector({ onSelect, selectedUrl }: ImageSelectorProps) {
     reader.onload = (e) => {
       const dataUrl = e.target?.result as string
       setUploadedImage(dataUrl)
-      onSelect(dataUrl)
+      onSelect({
+        url: dataUrl,
+        source: 'custom',
+        customImageId: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      })
     }
     reader.readAsDataURL(file)
   }, [onSelect])
@@ -59,7 +70,11 @@ export function ImageSelector({ onSelect, selectedUrl }: ImageSelectorProps) {
 
   const handlePresetSelect = (preset: PresetImage) => {
     setUploadedImage(null)
-    onSelect(preset.url)
+    onSelect({
+      url: preset.url,
+      source: 'preset',
+      presetImageId: preset.id,
+    })
   }
 
   const clearUploadedImage = () => {
