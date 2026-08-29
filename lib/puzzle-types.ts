@@ -29,7 +29,11 @@ export interface GameState {
 
 export interface GameRecord {
   id: string
-  imageUrl: string
+  /** 仅用于兼容旧版本记录，新记录不会保存图片 DataURL */
+  imageUrl?: string
+  imageSource?: 'preset' | 'custom'
+  presetImageId?: string
+  customImageId?: string
   gridSize: number
   moves: number
   time: number

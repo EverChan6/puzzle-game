@@ -15,6 +15,7 @@ import {
   saveGameRecord,
   generateId 
 } from '@/lib/puzzle-utils'
+import { saveCustomImage } from '@/lib/image-database'
 import type { PuzzlePiece } from '@/lib/puzzle-types'
 import { PRESET_IMAGES } from '@/lib/puzzle-types'
 import { Button } from '@/components/ui/button'
@@ -29,6 +30,9 @@ export function PuzzleGame({ onBackToMenu }: PuzzleGameProps) {
   const [pieces, setPieces] = useState<PuzzlePiece[]>([])
   const [gridSize, setGridSize] = useState(3)
   const [imageUrl, setImageUrl] = useState<string | null>(null)
+  const [imageSource, setImageSource] = useState<'preset' | 'custom'>('preset')
+  const [presetImageId, setPresetImageId] = useState<string | undefined>()
+  const [customImageId, setCustomImageId] = useState<string | undefined>()
   const [moves, setMoves] = useState(0)
   const [startTime, setStartTime] = useState<number | null>(null)
   const [elapsedTime, setElapsedTime] = useState(0)
@@ -61,8 +65,11 @@ export function PuzzleGame({ onBackToMenu }: PuzzleGameProps) {
   }, [isComplete])
 
   // 选择图片
-  const handleImageSelect = useCallback((url: string) => {
-    setImageUrl(url)
+  const handleImageSelect = useCallback((selection: { url: string; source: 'preset' | 'custom'; presetImageId?: string; customImageId?: string }) => {
+    setImageUrl(selection.url)
+    setImageSource(selection.source)
+    setPresetImageId(selection.presetImageId)
+    setCustomImageId(selection.customImageId)
     // 重置游戏状态
     setIsPlaying(false)
     setIsComplete(false)
@@ -110,16 +117,25 @@ export function PuzzleGame({ onBackToMenu }: PuzzleGameProps) {
           clearInterval(timerRef.current)
         }
         
-        // 保存记录
+        // 保存记录：自定义图片进入 IndexedDB，localStorage 只保存轻量元数据
         const finalTime = Math.floor((Date.now() - (startTime || 0)) / 1000)
-        saveGameRecord({
-          id: generateId(),
-          imageUrl: imageUrl!,
+        const recordId = generateId()
+        const record = {
+          id: recordId,
+          imageSource,
+          presetImageId,
+          customImageId,
           gridSize,
           moves: moves + 1,
           time: finalTime,
           date: new Date().toISOString()
-        })
+        }
+        void (async () => {
+          if (imageSource === 'custom' && customImageId) {
+            await saveCustomImage(customImageId, imageUrl!)
+          }
+          await saveGameRecord(record)
+        })().catch((error) => console.error('[v0] Failed to save puzzle record:', error))
         
         // 延迟显示完成弹窗
         setTimeout(() => {
@@ -154,8 +170,10 @@ export function PuzzleGame({ onBackToMenu }: PuzzleGameProps) {
   // 默认选择第一张预设图片
   useEffect(() => {
     if (!imageUrl && PRESET_IMAGES.length > 0) {
-      setImageUrl(PRESET_IMAGES[0].url)
-    }
+    setImageUrl(PRESET_IMAGES[0].url)
+    setImageSource('preset')
+    setPresetImageId(PRESET_IMAGES[0].id)
+  }
   }, [imageUrl])
 
   return (
