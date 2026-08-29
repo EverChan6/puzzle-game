@@ -25,6 +25,7 @@ export function PiecePreviewCanvas({
 }: PiecePreviewCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const imageRef = useRef<HTMLImageElement | null>(null)
+  const imageUrlRef = useRef(imageUrl)
 
   const generatePiecePath = useCallback((
     ctx: CanvasRenderingContext2D,
@@ -184,9 +185,10 @@ export function PiecePreviewCanvas({
     generatePiecePath(ctx, x, y, size, piece.edges, piece.rotation)
     ctx.clip()
 
-    const srcSize = img.width / gridSize
-    const srcX = piece.imageX * srcSize
-    const srcY = piece.imageY * srcSize
+    const srcWidth = img.naturalWidth / gridSize
+    const srcHeight = img.naturalHeight / gridSize
+    const srcX = piece.imageX * srcWidth
+    const srcY = piece.imageY * srcHeight
 
     const centerX = x + size / 2
     const centerY = y + size / 2
@@ -198,7 +200,7 @@ export function PiecePreviewCanvas({
     const tabExtra = size * TAB_SIZE
     ctx.drawImage(
       img,
-      srcX, srcY, srcSize, srcSize,
+      srcX, srcY, srcWidth, srcHeight,
       x - tabExtra, y - tabExtra, size + tabExtra * 2, size + tabExtra * 2
     )
 
@@ -213,13 +215,27 @@ export function PiecePreviewCanvas({
   }, [piece, gridSize, displaySize, generatePiecePath])
 
   useEffect(() => {
+    let cancelled = false
+    imageUrlRef.current = imageUrl
+    imageRef.current = null
+
     const img = new Image()
     img.crossOrigin = 'anonymous'
     img.onload = () => {
+      if (cancelled || imageUrlRef.current !== imageUrl) return
       imageRef.current = img
       draw()
     }
+    img.onerror = () => {
+      if (!cancelled && imageUrlRef.current === imageUrl) imageRef.current = null
+    }
     img.src = imageUrl
+
+    return () => {
+      cancelled = true
+      img.onload = null
+      img.onerror = null
+    }
   }, [imageUrl, draw])
 
   useEffect(() => {
